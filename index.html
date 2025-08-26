@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guide de Combat Pokémon Go</title>
+    <link rel="stylesheet" href="Pokemon.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <button id="settings-button" class="btn-settings">⚙️</button>
+            <h1>Guide de Combat Pokémon Go</h1>
+            <p>Saisissez le nom du Pokémon ou ses types pour obtenir des astuces de combat.</p>
+        </header>
+
+        <main class="main-content">
+            <section class="form-section">
+                <div class="form-group">
+                    <label for="pokemon-input">Nom du Pokémon</label>
+                    <input type="text" id="pokemon-input" class="form-control" placeholder="Ex: Dracaufeu">
+                    <div class="dropdown-list" id="pokemon-dropdown"></div>
+                    <p class="form-separator"></p>
+                </div>
+
+                <div class="form-group">
+                    <label for="type1-input">Type 1</label>
+                    <input type="text" id="type1-input" class="form-control" placeholder="Ex: Feu">
+                    <div class="dropdown-list" id="type1-dropdown"></div>
+                </div>
+
+                <div class="form-group">
+                    <label for="type2-input">Type 2 (optionnel)</label>
+                    <input type="text" id="type2-input" class="form-control" placeholder="Ex: Vol">
+                    <div class="dropdown-list" id="type2-dropdown"></div>
+                </div>
+
+                <div class="button-group">
+                    <button id="search-button" class="btn btn-primary">Analyser</button>
+                    <button id="reset-button" class="btn btn-secondary">Réinitialiser</button>
+                </div>
+            </section>
+
+            <section class="results-section">
+                <div id="results-display" class="results-card">
+                    <p class="placeholder-text">Les faiblesses et résistances s'afficheront ici.</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <div id="settings-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h2>Paramètres</h2>
+            <div class="setting-item">
+                <p>Mode Sombre</p>
+                <label class="switch">
+                    <input type="checkbox" id="dark-mode-toggle">
+                    <span class="slider round"></span>
+                </label>
+            </div>
+        </div>
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', initApp);
+
+async function initApp() {
+    // Éléments du DOM
+    const pokemonInput = document.getElementById('pokemon-input');
+    const pokemonDropdown = document.getElementById('pokemon-dropdown');
+    const type1Input = document.getElementById('type1-input');
+    const type2Input = document.getElementById('type2-input');
+    const type1Dropdown = document.getElementById('type1-dropdown');
+    const type2Dropdown = document.getElementById('type2-dropdown');
+    const searchButton = document.getElementById('search-button');
+    const resetButton = document.getElementById('reset-button');
+    const resultsDisplay = document.getElementById('results-display');
+    const settingsButton = document.getElementById('settings-button');
+    const settingsModal = document.getElementById('settings-modal');
+    const closeModal = document.querySelector('.close-button');
+    const darkModeToggle = document.getElementById('dark-mode-toggle');
+
+    let selectedType1 = null;
+    let selectedType2 = null;
+    let allPokemonNames = [];
+    let currentSelectedDropdownItem = -1;
+
+    const pokemonToFrench = {};
+
+    // Chart des multiplicateurs de dégâts
+    const damageChart = {
+        'Normal': { 'Normal': 1, 'Feu': 1, 'Eau': 1, 'Électrik': 1, 'Plante': 1, 'Glace': 1, 'Combat': 1, 'Poison': 1, 'Sol': 1, 'Vol': 1, 'Psy': 1, 'Insecte': 1, 'Roche': 0.625, 'Spectre': 0.39, 'Dragon': 1, 'Acier': 0.625, 'Ténèbres': 1, 'Fée': 1 },
+        'Feu': { 'Normal': 1, 'Feu': 0.625, 'Eau': 0.625, 'Électrik': 1, 'Plante': 1.6, 'Glace': 1.6, 'Combat': 1, 'Poison': 1, 'Sol': 0.625, 'Vol': 1, 'Psy': 1, 'Insecte': 1.6, 'Roche': 0.625, 'Spectre': 1, 'Dragon': 0.625, 'Acier': 1.6, 'Ténèbres': 1, 'Fée': 1 },
+        'Eau': { 'Normal': 1, 'Feu': 1.6, 'Eau': 0.625, 'Électrik': 1, 'Plante': 0.625, 'Glace': 1, 'Combat': 1, 'Poison': 1, 'Sol': 1.6, 'Vol': 1, 'Psy': 1, 'Insecte': 1, 'Roche': 1.6, 'Spectre': 1, 'Dragon': 0.625, 'Acier': 1, 'Ténèbres': 1, 'Fée': 1 },
+        'Électrik': { 'Normal': 1, 'Feu': 1, 'Eau': 1.6, 'Électrik': 0.625, 'Plante': 0.625, 'Glace': 1, 'Combat': 1, 'Poison': 1, 'Sol': 0.625, 'Vol': 1.6, 'Psy': 1, 'Insecte': 1, 'Roche': 1, 'Spectre': 1, 'Dragon': 0.625, 'Acier': 1, 'Ténèbres': 1, 'Fée': 1 },
+        'Plante': { 'Normal': 1, 'Feu': 0.625, 'Eau': 1.6, 'Électrik': 1, 'Plante': 0.625, 'Glace': 1, 'Combat': 1, 'Poison': 0.625, 'Sol': 1.6, 'Vol': 0.625, 'Psy': 1, 'Insecte': 0.625, 'Roche': 1.6, 'Spectre': 1, 'Dragon': 0.625, 'Acier': 0.625, 'Ténèbres': 1, 'Fée': 1 },
+        'Glace': { 'Normal': 1, 'Feu': 0.625, 'Eau': 0.625, 'Électrik': 1, 'Plante': 1.6, 'Glace': 0.625, 'Combat': 1, 'Poison': 1, 'Sol': 1.6, 'Vol': 1.6, 'Psy': 1, 'Insecte': 1, 'Roche': 1, 'Spectre': 1, 'Dragon': 1.6, 'Acier': 0.625, 'Ténèbres': 1, 'Fée': 1 },
+        'Combat': { 'Normal': 1.6, 'Feu': 1, 'Eau': 1, 'Électrik': 1, 'Plante': 1, 'Glace': 1.6, 'Combat': 1, 'Poison': 0.625, 'Sol': 1, 'Vol': 0.625, 'Psy': 0.625, 'Insecte': 0.625, 'Roche': 1.6, 'Spectre': 0.39, 'Dragon': 1, 'Acier': 1.6, 'Ténèbres': 1.6, 'Fée': 0.625 },
+        'Poison': { 'Normal': 1, 'Feu': 1, 'Eau': 1, 'Électrik': 1, 'Plante': 1.6, 'Glace': 1, 'Combat': 1, 'Poison': 0.625, 'Sol': 0.625, 'Vol': 1, 'Psy': 1, 'Insecte': 1, 'Roche': 0.625, 'Spectre': 0.625, 'Dragon': 1, 'Acier': 0.39, 'Ténèbres': 1, 'Fée': 1.6 },
+        'Sol': { 'Normal': 1, 'Feu': 1.6, 'Eau': 1, 'Électrik': 1.6, 'Plante': 0.625, 'Glace': 1, 'Combat': 1, 'Poison': 1.6, 'Sol': 1, 'Vol': 0.39, 'Psy': 1, 'Insecte': 0.625, 'Roche': 1.6, 'Spectre': 1, 'Dragon': 1, 'Acier': 1.6, 'Ténèbres': 1, 'Fée': 1 },
+        'Vol': { 'Normal': 1, 'Feu': 1, 'Eau': 1, 'Électrik': 0.625, 'Plante': 1.6, 'Glace': 1, 'Combat': 1.6, 'Poison': 1, 'Sol': 1, 'Vol': 1, 'Psy': 1, 'Insecte': 1.6, 'Roche': 0.625, 'Spectre': 1, 'Dragon': 1, 'Acier': 0.625, 'Ténèbres': 1, 'Fée': 1 },
+        'Psy': { 'Normal': 1, 'Feu': 1, 'Eau': 1, 'Électrik': 1, 'Plante': 1, 'Glace': 1, 'Combat': 1.6, 'Poison': 1.6, 'Sol': 1, 'Vol': 1, 'Psy': 0.625, 'Insecte': 1, 'Roche': 1, 'Spectre': 1, 'Dragon': 1, 'Acier': 0.625, 'Ténèbres': 0.39, 'Fée': 1 },
+        'Insecte': { 'Normal': 1, 'Feu': 0.625, 'Eau': 1, 'Électrik': 1, 'Plante': 1.6, 'Glace': 1, 'Combat': 0.625, 'Poison': 0.625, 'Sol': 1, 'Vol': 0.625, 'Psy': 1.6, 'Insecte': 1, 'Roche': 1, 'Spectre': 0.625, 'Dragon': 1, 'Acier': 0.625, 'Ténèbres': 1.6, 'Fée': 0.625 },
+        'Roche': { 'Normal': 1, 'Feu': 1.6, 'Eau': 1, 'Électrik': 1, 'Plante': 1, 'Glace': 1.6, 'Combat': 0.625, 'Poison': 1, 'Sol': 0.625, 'Vol': 1.6, 'Psy': 1, 'Insecte': 1.6, 'Roche': 1, 'Spectre': 1, 'Dragon': 1, 'Acier': 0.625, 'Ténèbres': 1, 'Fée': 1 },
+        'Spectre': { 'Normal': 0.39, 'Feu': 1, 'Eau': 1, 'Électrik': 1, 'Plante': 1, 'Glace': 1, 'Combat': 1, 'Poison': 1, 'Sol': 1, 'Vol': 1, 'Psy': 1.6, 'Insecte': 1, 'Roche': 1, 'Spectre': 1.6, 'Dragon': 1, 'Acier': 1, 'Ténèbres': 0.625, 'Fée': 1 },
+        'Dragon': { 'Normal': 1, 'Feu': 1, 'Eau': 1, 'Électrik': 1, 'Plante': 1, 'Glace': 1, 'Combat': 1, 'Poison': 1, 'Sol': 1, 'Vol': 1, 'Psy': 1, 'Insecte': 1, 'Roche': 1, 'Spectre': 1, 'Dragon': 1.6, 'Acier': 0.625, 'Ténèbres': 1, 'Fée': 0.39 },
+        'Acier': { 'Normal': 1, 'Feu': 0.625, 'Eau': 0.625, 'Électrik': 0.625, 'Plante': 1, 'Glace': 1.6, 'Combat': 1, 'Poison': 1, 'Sol': 1, 'Vol': 1, 'Psy': 1, 'Insecte': 1, 'Roche': 1.6, 'Spectre': 1, 'Dragon': 1, 'Acier': 0.625, 'Ténèbres': 1, 'Fée': 1.6 },
+        'Ténèbres': { 'Normal': 1, 'Feu': 1, 'Eau': 1, 'Électrik': 1, 'Plante': 1, 'Glace': 1, 'Combat': 0.625, 'Poison': 1, 'Sol': 1, 'Vol': 1, 'Psy': 1.6, 'Insecte': 1, 'Roche': 1, 'Spectre': 1.6, 'Dragon': 1, 'Acier': 1, 'Ténèbres': 0.625, 'Fée': 0.625 },
+        'Fée': { 'Normal': 1, 'Feu': 0.625, 'Eau': 1, 'Électrik': 1, 'Plante': 1, 'Glace': 1, 'Combat': 1.6, 'Poison': 0.625, 'Sol': 1, 'Vol': 1, 'Psy': 1, 'Insecte': 1, 'Roche': 1, 'Spectre': 1, 'Dragon': 1.6, 'Acier': 0.625, 'Ténèbres': 1.6, 'Fée': 1 }
+    };
+    const allTypes = Object.keys(damageChart);
+    
+    // Initialisation des listes de noms de Pokémon depuis l'API
+    try {
+        const response = await fetch('https://pokeapi.co/api/v2/pokedex/1/');
+        const data = await response.json();
+        const promises = data.pokemon_entries.map(async entry => {
+            const speciesResponse = await fetch(entry.pokemon_species.url);
+            const speciesData = await speciesResponse.json();
+            const frenchName = speciesData.names.find(name => name.language.name === 'fr');
+            if (frenchName) {
+                pokemonToFrench[frenchName.name.toLowerCase()] = speciesData.name;
+                allPokemonNames.push(frenchName.name);
+            }
+        });
+        await Promise.all(promises);
+        console.log("Liste des Pokémon chargée.");
+    } catch (error) {
+        console.error("Erreur de chargement des noms de Pokémon:", error);
+    }
+    
+    // Initialisation des listes déroulantes de types
+    setupDropdown(type1Input, type1Dropdown, (type) => selectedType1 = type, allTypes);
+    setupDropdown(type2Input, type2Dropdown, (type) => selectedType2 = type, allTypes);
+
+    // Écouteur pour la recherche par nom de Pokémon
+    pokemonInput.addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase();
+        pokemonDropdown.innerHTML = '';
+        if (query.length > 0) {
+            const filteredNames = allPokemonNames.filter(name => name.toLowerCase().startsWith(query));
+            filteredNames.forEach(name => {
+                const item = document.createElement('div');
+                item.className = 'dropdown-item';
+                item.textContent = name;
+                item.addEventListener('click', () => {
+                    handlePokemonSearch(name.toLowerCase());
+                    pokemonInput.value = name;
+                    hideDropdown(pokemonDropdown);
+                });
+                pokemonDropdown.appendChild(item);
+            });
+            pokemonDropdown.style.display = 'block';
+        } else {
+            hideDropdown(pokemonDropdown);
+        }
+    });
+
+    // Navigation au clavier pour la recherche de Pokémon
+    pokemonInput.addEventListener('keydown', (e) => handleKeyNavigation(e, pokemonDropdown, pokemonInput, (name) => {
+        handlePokemonSearch(name.toLowerCase());
+        pokemonInput.value = name;
+    }));
+    
+    // Navigation au clavier pour les types
+    type1Input.addEventListener('keydown', (e) => handleKeyNavigation(e, type1Dropdown, type1Input, (type) => {
+        selectedType1 = type;
+        type1Input.value = type;
+    }));
+    type2Input.addEventListener('keydown', (e) => handleKeyNavigation(e, type2Dropdown, type2Input, (type) => {
+        selectedType2 = type;
+        type2Input.value = type;
+    }));
+
+    document.addEventListener('click', (e) => {
+        if (!pokemonInput.parentElement.contains(e.target)) {
+            hideDropdown(pokemonDropdown);
+        }
+    });
+
+    // Écouteurs d'événements pour les boutons
+    searchButton.addEventListener('click', () => handleSearch(selectedType1, selectedType2));
+    resetButton.addEventListener('click', resetApp);
+    settingsButton.addEventListener('click', () => settingsModal.style.display = 'block');
+    closeModal.addEventListener('click', () => settingsModal.style.display = 'none');
+    window.addEventListener('click', (e) => {
+        if (e.target === settingsModal) {
+            settingsModal.style.display = 'none';
+        }
+    });
+    darkModeToggle.addEventListener('change', () => {
+        document.body.classList.toggle('dark-mode', darkModeToggle.checked);
+        localStorage.setItem('dark-mode', darkModeToggle.checked);
+    });
+
+    // Vérifier si le mode sombre est activé par défaut
+    if (localStorage.getItem('dark-mode') === 'true') {
+        document.body.classList.add('dark-mode');
+        darkModeToggle.checked = true;
+    }
+    
+    /**
+     * Gère la navigation au clavier dans les listes déroulantes.
+     */
+    function handleKeyNavigation(e, dropdown, input, onSelect) {
+        const items = Array.from(dropdown.querySelectorAll('.dropdown-item'));
+        if (items.length === 0) return;
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            currentSelectedDropdownItem = (currentSelectedDropdownItem + 1) % items.length;
+            updateActiveItem(items);
+            input.value = items[currentSelectedDropdownItem].textContent;
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            currentSelectedDropdownItem = (currentSelectedDropdownItem - 1 + items.length) % items.length;
+            updateActiveItem(items);
+            input.value = items[currentSelectedDropdownItem].textContent;
+        } else if (e.key === 'Enter' && currentSelectedDropdownItem !== -1) {
+            e.preventDefault();
+            const selectedItem = items[currentSelectedDropdownItem];
+            onSelect(selectedItem.textContent);
+            hideDropdown(dropdown);
+            currentSelectedDropdownItem = -1;
+        }
+    }
+
+    function updateActiveItem(items) {
+        items.forEach((item, index) => {
+            item.classList.toggle('active', index === currentSelectedDropdownItem);
+        });
+    }
+
+    /**
+     * Gère le comportement des listes déroulantes de type.
+     */
+    function setupDropdown(inputElement, dropdownElement, onSelect, data) {
+        inputElement.addEventListener('focus', () => showDropdown(inputElement, dropdownElement, data, onSelect));
+        inputElement.addEventListener('input', (e) => filterDropdown(e.target.value, dropdownElement, data, onSelect));
+    }
+
+    function showDropdown(input, dropdown, list, onSelect) {
+        dropdown.innerHTML = '';
+        list.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'dropdown-item';
+            div.textContent = item;
+            div.addEventListener('click', () => {
+                input.value = item;
+                onSelect(item);
+                hideDropdown(dropdown);
+            });
+            dropdown.appendChild(div);
+        });
+        dropdown.style.display = 'block';
+        currentSelectedDropdownItem = -1;
+    }
+
+    function filterDropdown(filterText, dropdown, list, onSelect) {
+        dropdown.innerHTML = '';
+        const filteredItems = list.filter(item => item.toLowerCase().includes(filterText.toLowerCase()));
+        filteredItems.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'dropdown-item';
+            div.textContent = item;
+            div.addEventListener('click', () => {
+                inputElement.value = item;
+                onSelect(item);
+                hideDropdown(dropdown);
+            });
+            dropdown.appendChild(div);
+        });
+        dropdown.style.display = 'block';
+        currentSelectedDropdownItem = -1;
+    }
+
+    function hideDropdown(dropdown) {
+        dropdown.style.display = 'none';
+        currentSelectedDropdownItem = -1;
+    }
+
+    /**
+     * Gère la recherche d'un Pokémon par son nom.
+     */
+    async function handlePokemonSearch(pokemonName) {
+        const englishName = pokemonToFrench[pokemonName];
+        if (!englishName) {
+            displayError('Pokémon non trouvé. Veuillez vérifier l\'orthographe.');
+            return;
+        }
+
+        try {
+            const response = await fetch(`https://pokeapi.co/api/v2/pokemon/${englishName}`);
+            if (!response.ok) throw new Error('Erreur de l\'API Pokémon');
+            const data = await response.json();
+            
+            const types = data.types.map(t => {
+                const frenchType = t.type.name;
+                return capitalizeFrenchType(frenchType);
+            });
+
+            const speciesResponse = await fetch(data.species.url);
+            const speciesData = await speciesResponse.json();
+            const generationName = speciesData.generation.name.replace('generation-', '').toUpperCase();
+            const pokedexNumber = data.id;
+
+            type1Input.value = types[0];
+            type2Input.value = types[1] || '';
+
+            selectedType1 = types[0];
+            selectedType2 = types[1] || null;
+
+            handleSearch(selectedType1, selectedType2, types, {
+                name: pokemonName,
+                number: pokedexNumber,
+                region: generationName,
+                sprite: data.sprites.front_default
+            });
+
+        } catch (error) {
+            console.error(error);
+            displayError('Une erreur est survenue lors de la recherche.');
+        }
+    }
+
+    function capitalizeFrenchType(type) {
+        const typesMap = {
+            'normal': 'Normal', 'fire': 'Feu', 'water': 'Eau', 'electric': 'Électrik', 'grass': 'Plante', 'ice': 'Glace', 'fighting': 'Combat', 'poison': 'Poison', 'ground': 'Sol', 'flying': 'Vol', 'psychic': 'Psy', 'bug': 'Insecte', 'rock': 'Roche', 'ghost': 'Spectre', 'dragon': 'Dragon', 'steel': 'Acier', 'dark': 'Ténèbres', 'fairy': 'Fée'
+        };
+        return typesMap[type.toLowerCase()] || type;
+    }
+
+    /**
+     * Calcule et affiche les faiblesses et résistances.
+     */
+    function handleSearch(type1, type2, defendingTypes = null, pokemonData = null) {
+        if (!type1) {
+            displayError('Veuillez sélectionner au moins un type.');
+            return;
+        }
+
+        const results = {
+            weaknesses: { extremelyWeak: [], weak: [] },
+            strengths: { veryResistant: [], resistant: [] }
+        };
+
+        allTypes.forEach(attackingType => {
+            let multiplier1 = damageChart[attackingType][type1];
+            let totalMultiplier = multiplier1;
+
+            if (type2) {
+                let multiplier2 = damageChart[attackingType][type2];
+                totalMultiplier *= multiplier2;
+            }
+            
+            if (totalMultiplier >= 2.56) {
+                results.weaknesses.extremelyWeak.push(attackingType);
+            } else if (totalMultiplier >= 1.6) {
+                results.weaknesses.weak.push(attackingType);
+            } else if (totalMultiplier <= 0.39) {
+                results.strengths.veryResistant.push(attackingType);
+            } else if (totalMultiplier <= 0.625) {
+                results.strengths.resistant.push(attackingType);
+            }
+        });
+
+        displayResults(results, defendingTypes, pokemonData);
+    }
+
+    /**
+     * Réinitialise tous les champs et résultats.
+     */
+    function resetApp() {
+        pokemonInput.value = '';
+        type1Input.value = '';
+        type2Input.value = '';
+        selectedType1 = null;
+        selectedType2 = null;
+        resultsDisplay.innerHTML = '<p class="placeholder-text">Les faiblesses et résistances s\'afficheront ici.</p>';
+    }
+
+    /**
+     * Affiche les résultats dans le DOM.
+     */
+    function displayResults(data, defendingTypes, pokemonData) {
+        resultsDisplay.innerHTML = '';
+        const hasResults = Object.values(data.weaknesses).some(arr => arr.length > 0) || Object.values(data.strengths).some(arr => arr.length > 0);
+
+        if (pokemonData) {
+            const pokemonInfo = document.createElement('div');
+            pokemonInfo.className = 'pokemon-info-card';
+            pokemonInfo.innerHTML = `
+                <img src="${pokemonData.sprite}" alt="${pokemonData.name}" class="pokemon-sprite">
+                <div class="pokemon-details">
+                    <h3>#${pokemonData.number} - ${pokemonData.name}</h3>
+                    <p>Région : ${pokemonData.region}</p>
+                </div>
+            `;
+            resultsDisplay.appendChild(pokemonInfo);
+        }
+
+        if (!hasResults) {
+            resultsDisplay.innerHTML += '<p class="placeholder-text">Ce Pokémon n\'a pas de faiblesses ou de résistances particulières.</p>';
+            return;
+        }
+
+        const weaknessSection = createResultSection('Faiblesses', 'weaknesses');
+        appendTypeList(weaknessSection, data.weaknesses.extremelyWeak, 'Extrêmement Faible (x2.56)');
+        appendTypeList(weaknessSection, data.weaknesses.weak, 'Faible (x1.6)');
+        resultsDisplay.appendChild(weaknessSection);
+
+        const strengthSection = createResultSection('Résistances', 'strengths');
+        appendTypeList(strengthSection, data.strengths.veryResistant, 'Très Résistant (x0.39)');
+        appendTypeList(strengthSection, data.strengths.resistant, 'Résistant (x0.625)');
+        resultsDisplay.appendChild(strengthSection);
+    }
+    
+    /**
+     * Affiche un message d'erreur.
+     */
+    function displayError(message) {
+        resultsDisplay.innerHTML = `<p class="placeholder-text error-message">${message}</p>`;
+    }
+    
+    /**
+     * Crée une section de résultats avec un titre et une classe.
+     */
+    function createResultSection(titleText, className) {
+        const section = document.createElement('div');
+        section.className = `results-section ${className}`;
+        const title = document.createElement('h2');
+        title.textContent = titleText;
+        section.appendChild(title);
+        return section;
+    }
+
+    /**
+     * Ajoute une liste de types à une section.
+     */
+    function appendTypeList(section, types, label) {
+        if (types.length === 0) return;
+        
+        const listContainer = document.createElement('div');
+        const listLabel = document.createElement('h3');
+        listLabel.textContent = label;
+        listContainer.appendChild(listLabel);
+        
+        const list = document.createElement('ul');
+        list.className = 'results-list';
+        types.forEach(type => {
+            const item = document.createElement('li');
+            item.className = 'type-item';
+            item.textContent = type;
+            list.appendChild(item);
+        });
+        listContainer.appendChild(list);
+        section.appendChild(listContainer);
+    }
+}
+    </script>
+</body>
+</html>
