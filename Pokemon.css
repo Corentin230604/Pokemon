@@ -62,6 +62,7 @@ body.dark-mode {
 .app-header {
     text-align: center;
     position: relative;
+    padding-top: 25px; /* Ajout d'un espacement pour le bouton */
 }
 
 h1 {
@@ -233,17 +234,26 @@ label {
     position: absolute;
     top: 0;
     right: 0;
-    background: transparent;
-    border: none;
-    font-size: 1.5rem;
+    background: var(--color-bg-primary);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 0.9rem;
+    font-weight: 500;
     cursor: pointer;
     color: var(--color-text-medium);
-    transition: color 0.3s, transform 0.2s;
+    transition: background-color 0.3s, color 0.3s, transform 0.2s;
 }
 
 .btn-settings:hover {
+    background-color: var(--color-border);
     color: var(--color-text-dark);
-    transform: rotate(45deg);
+    transform: translateY(-1px);
+}
+
+.btn-settings svg {
+    width: 100%;
+    height: 100%;
 }
 
 /* --- 5. Cartes de résultats --- */
@@ -450,4 +460,191 @@ input:checked + .slider:before {
 
 .slider.round:before {
     border-radius: 50%;
+}
+
+/* ... (tout ton code CSS existant) ... */
+
+.sprite-container {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 96px;
+    height: 96px;
+}
+
+.pokemon-info-card {
+    position: relative;
+}
+
+.shiny-button {
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    background-color: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: gold;
+    text-shadow: 0 0 5px gold;
+    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: var(--shadow-sm);
+}
+
+.shiny-button:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+}
+
+.pokemon-sprite-img {
+    transition: opacity 0.3s;
+}
+
+/* --- Section Évolution (Mise à jour) --- */
+.evolution-section {
+    margin-top: 25px;
+    padding-top: 25px;
+    border-top: 1px solid var(--color-border);
+}
+
+.evolution-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.evolution-header h2 {
+    margin: 0;
+}
+
+.toggle-button {
+    background-color: var(--color-bg-primary);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 8px 15px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    color: var(--color-text-dark);
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.toggle-button:hover {
+    background-color: var(--color-border);
+}
+
+/* --- Nouvelle classe pour masquer le contenu --- */
+.evolution-content.hidden {
+    display: none;
+}
+
+.evolution-chain-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.evolution-step {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    background-color: var(--color-bg-card);
+    padding: 10px 5px;
+    border-radius: 8px;
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.evolution-step:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-md);
+}
+
+.evolution-step img {
+    width: 70px;
+    height: 70px;
+    image-rendering: pixelated;
+    filter: drop-shadow(2px 2px 2px rgba(0,0,0,0.2));
+    margin-bottom: 5px;
+}
+
+.evolution-step p {
+    font-size: 0.85rem;
+    margin: 0;
+    font-weight: 500;
+    color: var(--color-text-dark);
+}
+
+.arrow-separator {
+    font-size: 2rem;
+    color: var(--color-text-medium);
+    margin: 0 5px;
+}
+
+/* Bouton Shiny pour chaque évolution */
+.evolution-shiny-button {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background-color: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    border-radius: 50%;
+    width: 25px;
+    height: 25px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: bold;
+    color: gold;
+    text-shadow: 0 0 3px gold;
+    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: var(--shadow-sm);
+}
+
+.evolution-shiny-button:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
+}
+
+/* --- Responsive pour les évolutions --- */
+@media (max-width: 600px) {
+    .evolution-chain-container {
+        flex-direction: column;
+    }
+    .arrow-separator {
+        transform: rotate(90deg);
+        margin: 10px 0;
+    }
+}
+
+@media (max-width: 480px) {
+    .evolution-step img {
+        width: 60px;
+        height: 60px;
+    }
+    .evolution-step p {
+        font-size: 0.8rem;
+    }
+    .arrow-separator {
+        font-size: 1.5rem;
+    }
+    .evolution-shiny-button {
+        width: 20px;
+        height: 20px;
+        font-size: 0.8rem;
+    }
 }

@@ -12,7 +12,7 @@
 <body>
     <div class="app-container">
         <header class="app-header">
-            <button id="settings-button" class="btn-settings">⚙️</button>
+            <button id="settings-button" class="btn-settings">Paramètres</button>
             <h1>Guide de Combat Pokémon Go</h1>
             <p>Saisissez le nom du Pokémon ou ses types pour obtenir des astuces de combat.</p>
         </header>
@@ -69,7 +69,6 @@
         document.addEventListener('DOMContentLoaded', initApp);
 
 async function initApp() {
-    // Éléments du DOM
     const pokemonInput = document.getElementById('pokemon-input');
     const pokemonDropdown = document.getElementById('pokemon-dropdown');
     const type1Input = document.getElementById('type1-input');
@@ -87,11 +86,11 @@ async function initApp() {
     let selectedType1 = null;
     let selectedType2 = null;
     let allPokemonNames = [];
+    let pokemonDataCache = {};
     let currentSelectedDropdownItem = -1;
 
     const pokemonToFrench = {};
 
-    // Chart des multiplicateurs de dégâts
     const damageChart = {
         'Normal': { 'Normal': 1, 'Feu': 1, 'Eau': 1, 'Électrik': 1, 'Plante': 1, 'Glace': 1, 'Combat': 1, 'Poison': 1, 'Sol': 1, 'Vol': 1, 'Psy': 1, 'Insecte': 1, 'Roche': 0.625, 'Spectre': 0.39, 'Dragon': 1, 'Acier': 0.625, 'Ténèbres': 1, 'Fée': 1 },
         'Feu': { 'Normal': 1, 'Feu': 0.625, 'Eau': 0.625, 'Électrik': 1, 'Plante': 1.6, 'Glace': 1.6, 'Combat': 1, 'Poison': 1, 'Sol': 0.625, 'Vol': 1, 'Psy': 1, 'Insecte': 1.6, 'Roche': 0.625, 'Spectre': 1, 'Dragon': 0.625, 'Acier': 1.6, 'Ténèbres': 1, 'Fée': 1 },
@@ -113,37 +112,62 @@ async function initApp() {
         'Fée': { 'Normal': 1, 'Feu': 0.625, 'Eau': 1, 'Électrik': 1, 'Plante': 1, 'Glace': 1, 'Combat': 1.6, 'Poison': 0.625, 'Sol': 1, 'Vol': 1, 'Psy': 1, 'Insecte': 1, 'Roche': 1, 'Spectre': 1, 'Dragon': 1.6, 'Acier': 0.625, 'Ténèbres': 1.6, 'Fée': 1 }
     };
     const allTypes = Object.keys(damageChart);
+    const regionNames = {
+        'generation-i': 'Kanto', 'generation-ii': 'Johto', 'generation-iii': 'Hoenn', 'generation-iv': 'Sinnoh',
+        'generation-v': 'Unys', 'generation-vi': 'Kalos', 'generation-vii': 'Alola', 'generation-viii': 'Galar', 'generation-ix': 'Paldea'
+    };
+    const regionRoman = {
+        'generation-i': 'I', 'generation-ii': 'II', 'generation-iii': 'III', 'generation-iv': 'IV', 'generation-v': 'V',
+        'generation-vi': 'VI', 'generation-vii': 'VII', 'generation-viii': 'VIII', 'generation-ix': 'IX'
+    };
     
-    // Initialisation des listes de noms de Pokémon depuis l'API
+    // Initialisation des listes de noms de Pokémon depuis l'API et mise en cache des descriptions
     try {
         const response = await fetch('https://pokeapi.co/api/v2/pokedex/1/');
         const data = await response.json();
+        
         const promises = data.pokemon_entries.map(async entry => {
             const speciesResponse = await fetch(entry.pokemon_species.url);
             const speciesData = await speciesResponse.json();
+            
             const frenchName = speciesData.names.find(name => name.language.name === 'fr');
+            
             if (frenchName) {
                 pokemonToFrench[frenchName.name.toLowerCase()] = speciesData.name;
                 allPokemonNames.push(frenchName.name);
+                
+                const frenchDescription = speciesData.flavor_text_entries.find(text => text.language.name === 'fr' && text.version.name === 'red');
+                
+                pokemonDataCache[frenchName.name.toLowerCase()] = {
+                    name: frenchName.name,
+                    description: frenchDescription ? frenchDescription.flavor_text : '',
+                    id: speciesData.id
+                };
             }
         });
         await Promise.all(promises);
-        console.log("Liste des Pokémon chargée.");
+        console.log("Liste des Pokémon et descriptions chargées.");
     } catch (error) {
         console.error("Erreur de chargement des noms de Pokémon:", error);
     }
     
-    // Initialisation des listes déroulantes de types
     setupDropdown(type1Input, type1Dropdown, (type) => selectedType1 = type, allTypes);
     setupDropdown(type2Input, type2Dropdown, (type) => selectedType2 = type, allTypes);
 
-    // Écouteur pour la recherche par nom de Pokémon
     pokemonInput.addEventListener('input', (e) => {
         const query = e.target.value.toLowerCase();
         pokemonDropdown.innerHTML = '';
+        
         if (query.length > 0) {
             const filteredNames = allPokemonNames.filter(name => name.toLowerCase().startsWith(query));
-            filteredNames.forEach(name => {
+            
+            const filteredByDescription = Object.values(pokemonDataCache).filter(pokemon => {
+                return pokemon.description.toLowerCase().includes(query) && !filteredNames.includes(pokemon.name);
+            });
+
+            const combinedResults = [...filteredNames, ...filteredByDescription.map(p => p.name)];
+
+            combinedResults.forEach(name => {
                 const item = document.createElement('div');
                 item.className = 'dropdown-item';
                 item.textContent = name;
@@ -160,13 +184,11 @@ async function initApp() {
         }
     });
 
-    // Navigation au clavier pour la recherche de Pokémon
     pokemonInput.addEventListener('keydown', (e) => handleKeyNavigation(e, pokemonDropdown, pokemonInput, (name) => {
         handlePokemonSearch(name.toLowerCase());
         pokemonInput.value = name;
     }));
     
-    // Navigation au clavier pour les types
     type1Input.addEventListener('keydown', (e) => handleKeyNavigation(e, type1Dropdown, type1Input, (type) => {
         selectedType1 = type;
         type1Input.value = type;
@@ -182,7 +204,6 @@ async function initApp() {
         }
     });
 
-    // Écouteurs d'événements pour les boutons
     searchButton.addEventListener('click', () => handleSearch(selectedType1, selectedType2));
     resetButton.addEventListener('click', resetApp);
     settingsButton.addEventListener('click', () => settingsModal.style.display = 'block');
@@ -197,15 +218,11 @@ async function initApp() {
         localStorage.setItem('dark-mode', darkModeToggle.checked);
     });
 
-    // Vérifier si le mode sombre est activé par défaut
     if (localStorage.getItem('dark-mode') === 'true') {
         document.body.classList.add('dark-mode');
         darkModeToggle.checked = true;
     }
     
-    /**
-     * Gère la navigation au clavier dans les listes déroulantes.
-     */
     function handleKeyNavigation(e, dropdown, input, onSelect) {
         const items = Array.from(dropdown.querySelectorAll('.dropdown-item'));
         if (items.length === 0) return;
@@ -235,9 +252,6 @@ async function initApp() {
         });
     }
 
-    /**
-     * Gère le comportement des listes déroulantes de type.
-     */
     function setupDropdown(inputElement, dropdownElement, onSelect, data) {
         inputElement.addEventListener('focus', () => showDropdown(inputElement, dropdownElement, data, onSelect));
         inputElement.addEventListener('input', (e) => filterDropdown(e.target.value, dropdownElement, data, onSelect));
@@ -283,11 +297,8 @@ async function initApp() {
         currentSelectedDropdownItem = -1;
     }
 
-    /**
-     * Gère la recherche d'un Pokémon par son nom.
-     */
     async function handlePokemonSearch(pokemonName) {
-        const englishName = pokemonToFrench[pokemonName];
+        const englishName = pokemonToFrench[pokemonName.toLowerCase()];
         if (!englishName) {
             displayError('Pokémon non trouvé. Veuillez vérifier l\'orthographe.');
             return;
@@ -298,15 +309,20 @@ async function initApp() {
             if (!response.ok) throw new Error('Erreur de l\'API Pokémon');
             const data = await response.json();
             
-            const types = data.types.map(t => {
-                const frenchType = t.type.name;
-                return capitalizeFrenchType(frenchType);
-            });
+            const types = data.types.map(t => capitalizeFrenchType(t.type.name));
 
             const speciesResponse = await fetch(data.species.url);
             const speciesData = await speciesResponse.json();
-            const generationName = speciesData.generation.name.replace('generation-', '').toUpperCase();
-            const pokedexNumber = data.id;
+            
+            const generationId = speciesData.generation.name;
+            const pokemonDisplayName = pokemonName.charAt(0).toUpperCase() + pokemonName.slice(1);
+            
+            let evolutionChainData;
+            if (englishName === 'meltan' || englishName === 'melmetal') {
+                evolutionChainData = await getMeltanEvolutionChain();
+            } else {
+                evolutionChainData = await getEvolutionChain(speciesData.evolution_chain.url);
+            }
 
             type1Input.value = types[0];
             type2Input.value = types[1] || '';
@@ -315,16 +331,78 @@ async function initApp() {
             selectedType2 = types[1] || null;
 
             handleSearch(selectedType1, selectedType2, types, {
-                name: pokemonName,
-                number: pokedexNumber,
-                region: generationName,
-                sprite: data.sprites.front_default
+                name: pokemonDisplayName,
+                number: data.id,
+                regionName: regionNames[generationId],
+                regionRoman: regionRoman[generationId],
+                sprite: data.sprites.front_default,
+                shinySprite: data.sprites.front_shiny,
+                evolutionChain: evolutionChainData
             });
 
         } catch (error) {
             console.error(error);
             displayError('Une erreur est survenue lors de la recherche.');
         }
+    }
+
+    /**
+     * Récupère les données d'évolution pour Meltan et Melmetal (cas spécial).
+     */
+    async function getMeltanEvolutionChain() {
+        const meltan = await fetch(`https://pokeapi.co/api/v2/pokemon/meltan/`).then(res => res.json());
+        const melmetal = await fetch(`https://pokeapi.co/api/v2/pokemon/melmetal/`).then(res => res.json());
+        return [[{
+            name: 'Meltan',
+            englishName: 'meltan',
+            sprite: meltan.sprites.front_default,
+            shinySprite: meltan.sprites.front_shiny
+        }, {
+            name: 'Melmetal',
+            englishName: 'melmetal',
+            sprite: melmetal.sprites.front_default,
+            shinySprite: melmetal.sprites.front_shiny
+        }]];
+    }
+    
+    /**
+     * Récupère les données d'évolution, y compris les chaînes ramifiées.
+     */
+    async function getEvolutionChain(url) {
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        let evolutionChains = [];
+
+        async function extractEvolutions(chainLink, currentPath = []) {
+            const pokemonNameEn = chainLink.species.name;
+            
+            const speciesResponse = await fetch(chainLink.species.url);
+            const speciesData = await speciesResponse.json();
+            const frenchNameObj = speciesData.names.find(name => name.language.name === 'fr');
+            const frenchName = frenchNameObj ? frenchNameObj.name : pokemonNameEn;
+
+            const pokemonResponse = await fetch(`https://pokeapi.co/api/v2/pokemon/${pokemonNameEn}`);
+            const pokemonData = await pokemonResponse.json();
+
+            const newPath = [...currentPath, {
+                name: frenchName,
+                englishName: pokemonNameEn,
+                sprite: pokemonData.sprites.front_default,
+                shinySprite: pokemonData.sprites.front_shiny,
+            }];
+
+            if (chainLink.evolves_to.length === 0) {
+                evolutionChains.push(newPath);
+            } else {
+                for (const nextEvolution of chainLink.evolves_to) {
+                    await extractEvolutions(nextEvolution, newPath);
+                }
+            }
+        }
+
+        await extractEvolutions(data.chain);
+        return evolutionChains;
     }
 
     function capitalizeFrenchType(type) {
@@ -334,9 +412,6 @@ async function initApp() {
         return typesMap[type.toLowerCase()] || type;
     }
 
-    /**
-     * Calcule et affiche les faiblesses et résistances.
-     */
     function handleSearch(type1, type2, defendingTypes = null, pokemonData = null) {
         if (!type1) {
             displayError('Veuillez sélectionner au moins un type.');
@@ -371,9 +446,6 @@ async function initApp() {
         displayResults(results, defendingTypes, pokemonData);
     }
 
-    /**
-     * Réinitialise tous les champs et résultats.
-     */
     function resetApp() {
         pokemonInput.value = '';
         type1Input.value = '';
@@ -384,7 +456,7 @@ async function initApp() {
     }
 
     /**
-     * Affiche les résultats dans le DOM.
+     * Affiche les résultats, y compris les chaînes d'évolution complexes.
      */
     function displayResults(data, defendingTypes, pokemonData) {
         resultsDisplay.innerHTML = '';
@@ -394,13 +466,101 @@ async function initApp() {
             const pokemonInfo = document.createElement('div');
             pokemonInfo.className = 'pokemon-info-card';
             pokemonInfo.innerHTML = `
-                <img src="${pokemonData.sprite}" alt="${pokemonData.name}" class="pokemon-sprite">
+                <div class="sprite-container">
+                    <img id="pokemon-sprite-normal" src="${pokemonData.sprite}" alt="${pokemonData.name}" class="pokemon-sprite-img">
+                    <img id="pokemon-sprite-shiny" src="${pokemonData.shinySprite}" alt="${pokemonData.name} shiny" class="pokemon-sprite-img" style="display:none;">
+                    <span id="shiny-toggle-button" class="shiny-button" title="Afficher la forme Shiny">✨</span>
+                </div>
                 <div class="pokemon-details">
                     <h3>#${pokemonData.number} - ${pokemonData.name}</h3>
-                    <p>Région : ${pokemonData.region}</p>
+                    <p>Région : ${pokemonData.regionName} (${pokemonData.regionRoman})</p>
                 </div>
             `;
             resultsDisplay.appendChild(pokemonInfo);
+            
+            const shinyButton = document.getElementById('shiny-toggle-button');
+            if (shinyButton) {
+                let isShiny = false;
+                shinyButton.addEventListener('click', () => {
+                    const normalSprite = document.getElementById('pokemon-sprite-normal');
+                    const shinySprite = document.getElementById('pokemon-sprite-shiny');
+                    isShiny = !isShiny;
+                    normalSprite.style.display = isShiny ? 'none' : 'block';
+                    shinySprite.style.display = isShiny ? 'block' : 'none';
+                });
+            }
+
+            // Affiche la chaîne d'évolution
+            if (pokemonData.evolutionChain && pokemonData.evolutionChain.length > 0) {
+                const evolutionSection = document.createElement('div');
+                evolutionSection.className = 'evolution-section';
+                
+                const evolutionHeader = document.createElement('div');
+                evolutionHeader.className = 'evolution-header';
+                evolutionHeader.innerHTML = `<h2>Chaîne d'Évolution</h2>`;
+                
+                const toggleEvolutionButton = document.createElement('button');
+                toggleEvolutionButton.className = 'toggle-button';
+                toggleEvolutionButton.textContent = 'Afficher';
+                evolutionHeader.appendChild(toggleEvolutionButton);
+                evolutionSection.appendChild(evolutionHeader);
+
+                const evolutionContent = document.createElement('div');
+                evolutionContent.className = 'evolution-content hidden'; // Masqué par défaut
+                
+                pokemonData.evolutionChain.forEach(chain => {
+                    const chainContainer = document.createElement('div');
+                    chainContainer.className = 'evolution-chain-container';
+                    
+                    chain.forEach((evolution, index) => {
+                        if (index > 0) {
+                            const arrow = document.createElement('span');
+                            arrow.className = 'arrow-separator';
+                            arrow.textContent = '➡️';
+                            chainContainer.appendChild(arrow);
+                        }
+                        const evolutionStep = document.createElement('div');
+                        evolutionStep.className = 'evolution-step';
+                        evolutionStep.dataset.pokemonName = evolution.name.toLowerCase();
+                        evolutionStep.innerHTML = `
+                            <img id="evo-sprite-normal-${evolution.englishName}" src="${evolution.sprite}" alt="${evolution.name}">
+                            <img id="evo-sprite-shiny-${evolution.englishName}" src="${evolution.shinySprite}" alt="${evolution.name} shiny" style="display:none;">
+                            <p>${evolution.name}</p>
+                            <span id="evo-shiny-toggle-button-${evolution.englishName}" class="evolution-shiny-button" title="Afficher la forme Shiny">✨</span>
+                        `;
+                        chainContainer.appendChild(evolutionStep);
+
+                        const evoShinyButton = evolutionStep.querySelector(`#evo-shiny-toggle-button-${evolution.englishName}`);
+                        if (evoShinyButton) {
+                            let isEvoShiny = false;
+                            evoShinyButton.addEventListener('click', (e) => {
+                                e.stopPropagation();
+                                const normalEvoSprite = evolutionStep.querySelector(`#evo-sprite-normal-${evolution.englishName}`);
+                                const shinyEvoSprite = evolutionStep.querySelector(`#evo-sprite-shiny-${evolution.englishName}`);
+                                isEvoShiny = !isEvoShiny;
+                                normalEvoSprite.style.display = isEvoShiny ? 'none' : 'block';
+                                shinyEvoSprite.style.display = isEvoShiny ? 'block' : 'none';
+                            });
+                        }
+
+                        evolutionStep.addEventListener('click', () => {
+                            if (confirm(`Voulez-vous rechercher des informations sur ${evolution.name} ?`)) {
+                                handlePokemonSearch(evolution.name.toLowerCase());
+                                pokemonInput.value = evolution.name;
+                            }
+                        });
+                    });
+                    evolutionContent.appendChild(chainContainer);
+                });
+                
+                evolutionSection.appendChild(evolutionContent);
+                resultsDisplay.appendChild(evolutionSection);
+
+                toggleEvolutionButton.addEventListener('click', () => {
+                    evolutionContent.classList.toggle('hidden');
+                    toggleEvolutionButton.textContent = evolutionContent.classList.contains('hidden') ? 'Afficher' : 'Masquer';
+                });
+            }
         }
 
         if (!hasResults) {
@@ -419,16 +579,10 @@ async function initApp() {
         resultsDisplay.appendChild(strengthSection);
     }
     
-    /**
-     * Affiche un message d'erreur.
-     */
     function displayError(message) {
         resultsDisplay.innerHTML = `<p class="placeholder-text error-message">${message}</p>`;
     }
     
-    /**
-     * Crée une section de résultats avec un titre et une classe.
-     */
     function createResultSection(titleText, className) {
         const section = document.createElement('div');
         section.className = `results-section ${className}`;
@@ -438,9 +592,6 @@ async function initApp() {
         return section;
     }
 
-    /**
-     * Ajoute une liste de types à une section.
-     */
     function appendTypeList(section, types, label) {
         if (types.length === 0) return;
         
